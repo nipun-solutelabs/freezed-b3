@@ -172,7 +172,7 @@ ${copyWith.abstractCopyWithGetter}
 
   bool _doesJsonAnnotationIncludesDefaultValue(String s) {
     if (s?.isEmpty ?? true) return false;
-    final pattern = r'@JsonKey\(.*defaultValue:.*\)';
+    final pattern = r'@JsonKey\(.*defaultValue\s*:.*\)';
 
     final exp = RegExp(pattern, multiLine: true);
 
