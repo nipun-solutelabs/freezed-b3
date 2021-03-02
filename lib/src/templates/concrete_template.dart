@@ -158,10 +158,17 @@ ${copyWith.abstractCopyWithGetter}
         if (!p.hasJsonKey) {
           pString = '@JsonKey(defaultValue: ${p.defaultValueSource}) $p';
         } else {
-          //add default value in json annotation of property if not exists
-          if (!_doesJsonAnnotationIncludesDefaultValue(pString)) {
-            pString = _addDefaultValueParamInJsonAnnotation(
-                str: pString, defaultValue: p.defaultValueSource);
+          //add default value in json annotation if missing
+          if (!_isParamPresentInAnnotation(
+            annotation: p.jsonKeyAnnotation,
+            param: 'defaultValue',
+          )) {
+            pString = _updateAnnotation(
+              str: pString,
+              annotation: 'JsonKey',
+              paramName: 'defaultValue',
+              paramValue: p.defaultValueSource,
+            );
           }
         }
       }
@@ -170,24 +177,34 @@ ${copyWith.abstractCopyWithGetter}
     }).join();
   }
 
-  bool _doesJsonAnnotationIncludesDefaultValue(String s) {
-    if (s?.isEmpty ?? true) return false;
-    final pattern = r'@JsonKey\(.*defaultValue\s*:.*\)';
+  bool _isParamPresentInAnnotation({
+    @required String annotation,
+    @required String param,
+  }) {
+    if (annotation?.isEmpty ?? true) return false;
+
+    final pattern =
+        '''(?=(?:[^'\\"]*(?:'|\\")[^'\\"]*(?:'|\\"))*[^'\\"]*\$)$param\\s*:''';
 
     final exp = RegExp(pattern, multiLine: true);
 
-    return exp.hasMatch(s);
+    return exp.hasMatch(annotation);
   }
 
-  String _addDefaultValueParamInJsonAnnotation(
-      {String str, String defaultValue}) {
+  String _updateAnnotation({
+    @required String str,
+    @required String annotation,
+    @required String paramName,
+    @required String paramValue,
+  }) {
     if (str?.isEmpty ?? true) return '';
-    final pattern = r'@JsonKey\((.*)\)';
+    final pattern =
+        '''(?=(?:[^'\\"]*(?:'|\\")[^'\\"]*(?:'|\\"))*[^'\\"]*\$)@$annotation\\((.*)\\)''';
 
     final exp = RegExp(pattern, multiLine: true);
 
     return str.replaceFirstMapped(
-        exp, (m) => '@JsonKey(defaultValue: $defaultValue, ${m.group(1)})');
+        exp, (m) => '@$annotation($paramName: $paramValue, ${m.group(1)})');
   }
 
   String get _asserts {
@@ -411,6 +428,7 @@ class Property {
     @required this.defaultValueSource,
     @required this.hasJsonKey,
     @required this.doc,
+    this.jsonKeyAnnotation,
   }) : type = type ?? 'dynamic';
 
   factory Property.fromParameter(ParameterElement element) {
@@ -423,6 +441,8 @@ class Property {
       );
     }
 
+    final jsonKeyAnnot = element.hasJsonKey ? element.jsonKeyAnnotation : null;
+
     return Property(
       name: element.name,
       doc: documentationOfParameter(element),
@@ -431,6 +451,7 @@ class Property {
       nullable: element.isNullable,
       defaultValueSource: defaultValue,
       hasJsonKey: element.hasJsonKey,
+      jsonKeyAnnotation: jsonKeyAnnot,
     );
   }
 
@@ -441,6 +462,7 @@ class Property {
   final String defaultValueSource;
   final bool hasJsonKey;
   final String doc;
+  final String jsonKeyAnnotation;
 
   @override
   String toString() {
@@ -503,6 +525,23 @@ extension DefaultValue on ParameterElement {
         } else {
           return res;
         }
+      }
+    }
+    return null;
+  }
+}
+
+extension JsonKeyAnnotation on ParameterElement {
+  /// Returns the `@JsonKey` annotation,
+  /// or `null` if no `@JsonKey` are specified.
+  String get jsonKeyAnnotation {
+    const matcher = TypeChecker.fromRuntime(JsonKey);
+
+    for (final meta in metadata) {
+      final obj = meta.computeConstantValue();
+      if (matcher.isExactlyType(obj.type)) {
+        final source = meta.toSource();
+        return source;
       }
     }
     return null;
