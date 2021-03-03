@@ -165,7 +165,7 @@ ${copyWith.abstractCopyWithGetter}
           )) {
             pString = _updateAnnotation(
               str: pString,
-              annotation: 'JsonKey',
+              annotationName: 'JsonKey',
               paramName: 'defaultValue',
               paramValue: p.defaultValueSource,
             );
@@ -183,28 +183,36 @@ ${copyWith.abstractCopyWithGetter}
   }) {
     if (annotation?.isEmpty ?? true) return false;
 
-    final pattern =
-        '''(?=(?:[^'\\"]*(?:'|\\")[^'\\"]*(?:'|\\"))*[^'\\"]*\$)$param\\s*:''';
+    final quotesPattern = "('''|\"\"\"|['\"]).*?\\1";
+    final paramPattern = '.*$param\\s*:.*';
 
-    final exp = RegExp(pattern, multiLine: true);
+    final quotesExp = RegExp(quotesPattern, multiLine: true);
+    final paramExp = RegExp(paramPattern, multiLine: true);
 
-    return exp.hasMatch(annotation);
+    final filteredAnnotation =
+        annotation.replaceAllMapped(quotesExp, (match) => '');
+
+    return paramExp.hasMatch(filteredAnnotation);
   }
 
   String _updateAnnotation({
-    @required String str,
-    @required String annotation,
-    @required String paramName,
-    @required String paramValue,
+    String str,
+    String annotationName,
+    String paramName,
+    String paramValue,
   }) {
     if (str?.isEmpty ?? true) return '';
-    final pattern =
-        '''(?=(?:[^'\\"]*(?:'|\\")[^'\\"]*(?:'|\\"))*[^'\\"]*\$)@$annotation\\((.*)\\)''';
 
-    final exp = RegExp(pattern, multiLine: true);
+    final quotesPattern = "('''|\"\"\"|['\"]).*?\\1";
+    final annotationPattern = '@$annotationName\\(';
 
-    return str.replaceFirstMapped(
-        exp, (m) => '@$annotation($paramName: $paramValue, ${m.group(1)})');
+    final quotesExp = RegExp(annotationPattern, multiLine: true);
+    final annotationExp = RegExp(quotesPattern, multiLine: true);
+
+    return str.splitMapJoin(quotesExp, onNonMatch: (nm) {
+      return nm.replaceFirstMapped(
+          annotationExp, (m) => '@$annotationName($paramName: $paramValue, ');
+    });
   }
 
   String get _asserts {
@@ -428,7 +436,6 @@ class Property {
     @required this.defaultValueSource,
     @required this.hasJsonKey,
     @required this.doc,
-    this.jsonKeyAnnotation,
   }) : type = type ?? 'dynamic';
 
   factory Property.fromParameter(ParameterElement element) {
@@ -441,7 +448,7 @@ class Property {
       );
     }
 
-    final jsonKeyAnnot = element.hasJsonKey ? element.jsonKeyAnnotation : null;
+    final jsonKey = element.hasJsonKey ? element.jsonKeyAnnotation : null;
 
     return Property(
       name: element.name,
@@ -451,8 +458,7 @@ class Property {
       nullable: element.isNullable,
       defaultValueSource: defaultValue,
       hasJsonKey: element.hasJsonKey,
-      jsonKeyAnnotation: jsonKeyAnnot,
-    );
+    ).._jsonKeyAnnotation = jsonKey;
   }
 
   final String type;
@@ -462,7 +468,9 @@ class Property {
   final String defaultValueSource;
   final bool hasJsonKey;
   final String doc;
-  final String jsonKeyAnnotation;
+
+  String _jsonKeyAnnotation;
+  String get jsonKeyAnnotation => _jsonKeyAnnotation;
 
   @override
   String toString() {
