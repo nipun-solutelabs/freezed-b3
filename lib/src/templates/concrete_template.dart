@@ -206,8 +206,8 @@ ${copyWith.abstractCopyWithGetter}
     final quotesPattern = "('''|\"\"\"|['\"]).*?\\1";
     final annotationPattern = '@$annotationName\\(';
 
-    final quotesExp = RegExp(annotationPattern, multiLine: true);
-    final annotationExp = RegExp(quotesPattern, multiLine: true);
+    final quotesExp = RegExp(quotesPattern, multiLine: true);
+    final annotationExp = RegExp(annotationPattern, multiLine: true);
 
     return str.splitMapJoin(quotesExp, onNonMatch: (nm) {
       return nm.replaceFirstMapped(
